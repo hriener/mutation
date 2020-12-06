@@ -2,6 +2,7 @@
 #include <iostream>
 #include <regex>
 #include <vector>
+#include <cstdlib>
 
 namespace
 {
@@ -13,7 +14,8 @@ public:
   std::string const reset_color = "\033[0m";
 
 public:
-  explicit mutation_generator()
+  explicit mutation_generator( std::string const& filename )
+    : source_filename( filename )
   {
     /* define some mutation operators */
     patterns.emplace_back( R"(1'b0)", std::vector<std::string>{ "1'b1" } );
@@ -28,17 +30,18 @@ public:
   }
 
 public:
-  void run( std::string const& filename )
+  void run()
   {
     load_file();
     generate_mutants();
+    compile_mutants();
   }
 
 private:
   void load_file()
   {
     /* read the whole file */
-    std::ifstream in( filename.c_str() );
+    std::ifstream in( source_filename.c_str() );
     std::string line;
     while ( std::getline( in, line ) )
     {
@@ -59,7 +62,7 @@ private:
         {
           for ( const auto& r : p.second )
           {
-            std::cout << filename << ":" << line_number << ":" << m.position() << ": ";
+            std::cout << source_filename << ":" << line_number << ":" << m.position() << ": ";
             std::cout << red_color << p.first << reset_color << ": " << line.substr( 0, m.position() )
                       << red_color << r << reset_color
                       << line.substr( m.position() + m.length() ) << std::endl;
@@ -94,7 +97,20 @@ private:
     os.close();
   }
 
+  void compile_mutants()
+  {
+    /* yosys -qp "synth -flatten; abc -g AND; write_aiger OUTPUT.aig" FILENAME */
+    for ( auto i = 0u; i < mutant_counter; ++i )
+    {
+      std::string const command = "yosys -qp \"synth -flatten; abc -g AND; write_aiger output" + std::to_string( i ) + ".aig\" mutant" + std::to_string( i ) + ".v";
+      std::cout << "Compile mutant " << i << std::endl;
+      system( command.c_str() );
+    }
+  }
+
 private:
+  std::string source_filename;
+
   std::vector<std::string> lines;
   uint32_t mutant_counter{0};
 
@@ -112,7 +128,7 @@ int main( int argc, char* argv[] )
     return -1;
   }
 
-  mutation_generator gen;
-  gen.run( argv[1] );
+  mutation_generator gen( argv[1] );
+  gen.run();
   return 0;
 }
