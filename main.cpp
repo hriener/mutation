@@ -34,7 +34,7 @@ public:
   {
     load_file();
     generate_mutants();
-    compile_mutants();
+    // compile_mutants();
   }
 
 private:
